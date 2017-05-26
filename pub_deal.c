@@ -37,6 +37,13 @@ int sock_writen(int iSock_fd,char *aStr_tmp,int iLen)
 	return 0;
 }
 
+/*********************************************************
+ ** 函数名  :   sock_readn(int iSock_fd,char *aStr_tmp,int iLen)
+ ** 功能    :   按指定长度读取socket描述符中的报文
+ ** 全局变量:
+ ** 入口参数:
+ ** 返回值:
+ ***********************************************************/
 int sock_readn(int iSock_fd,char *aStr_tmp,int iLen)
 {
 	printf("进程号[%d],开始读取数据,待读取数据长度为[%d]\n",getpid(),iLen);
@@ -70,6 +77,13 @@ int sock_readn(int iSock_fd,char *aStr_tmp,int iLen)
 	return 0;
 }
 
+/*********************************************************
+ ** 函数名  :   sig_chld( int signo) 
+ ** 功能    :   SIGCHLD信号触发时调用此函数用于回收子进程
+ ** 全局变量:
+ ** 入口参数:	signo	HTTP服务器请求报文
+ ** 返回值:
+ ***********************************************************/
 void sig_chld( int signo)
 {
 	printf("receive sig_chld signal\n");
@@ -88,7 +102,7 @@ void sig_chld( int signo)
  ** 功能    :   解析HTTP请求报文
  ** 全局变量:
  ** 入口参数:	aRcv_msg	HTTP服务器请求报文
- 				iMsg_len	请求报文长度   
+                iMsg_len	请求报文长度   
  ** 返回值:
  ***********************************************************/
 int nAnalyzeHttpRequestInfo(char *aRcv_msg,int iMsg_len) 
