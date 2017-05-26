@@ -86,12 +86,11 @@ int sock_readn(int iSock_fd,char *aStr_tmp,int iLen)
  ***********************************************************/
 void sig_chld( int signo)
 {
-	printf("receive sig_chld signal\n");
 	pid_t pid;
 	int stat;
 	while( (pid = waitpid(-1,&stat,WNOHANG)) > 0)
 	{
-		printf("child %d exit!\n",pid);
+		printf("child %d exit,exit_stat %d\n",pid,stat);
 	}
 	
 	return;
@@ -115,13 +114,15 @@ int nAnalyzeHttpRequestInfo(char *aRcv_msg,int iMsg_len)
 	memset(aLine_end,0x00,sizeof(aLine_end));
 	memset(&stReq_msg,0x00,sizeof(stReq_msg));
 	
-	printf("接收到的请求信息为:[%s]\n",aRcv_msg);
-	
+	aLine_end[0] = 13;
+	aLine_end[1] = 10;
+//	printf("接收到的请求信息为:[%s]\n",aRcv_msg);
+	start_tmp = aRcv_msg;
 	/*开始解析HTTP报文格式,起始行 <method> <request-URL> <version>,默认以回车换行结尾*/
 	end_tmp = strchr(start_tmp,' ');
 	if(end_tmp == NULL)
 	{
-		printf("ERROR 解析method失败\n");
+		printf("%d ERROR 解析method失败\n",__LINE__);
 		return -1;
 	}
 	memcpy(stReq_msg.aMethod,start_tmp,end_tmp - start_tmp);
@@ -130,21 +131,20 @@ int nAnalyzeHttpRequestInfo(char *aRcv_msg,int iMsg_len)
 	end_tmp = strchr(start_tmp,' ');
 	if(end_tmp == NULL)
 	{
-		printf("ERROR 解析request_url失败\n");
+		printf("%d ERROR 解析request_url失败\n",__LINE__);
 		return -1;
 	}
 	memcpy(stReq_msg.aRequest_url,start_tmp,end_tmp - start_tmp);
 	start_tmp = end_tmp + 1;
 	
-	end_tmp = strchr(start_tmp,' ');
+	end_tmp = strstr(start_tmp,aLine_end);
 	if(end_tmp == NULL)
 	{
-		printf("ERROR 解析version失败\n");
+		printf("%d ERROR 解析version失败\n",__LINE__);
 		return -1;
 	}
 	memcpy(stReq_msg.aVersion,start_tmp,end_tmp - start_tmp);
 	start_tmp = end_tmp + 1;
-	printf("test\n");
 	printf("method:[%s],URL:[%s],version:[%s]\n",stReq_msg.aMethod,stReq_msg.aRequest_url,stReq_msg.aVersion);
 	
 	return 0;

@@ -60,7 +60,12 @@ int main()
 		{
 			close(iSockfd);
 			sock_readn(iCli_sockfd,aRecv_msg,iLen);
-			nAnalyzeHttpRequestInfo(aRecv_msg,iLen);
+			ret = nAnalyzeHttpRequestInfo(aRecv_msg,iLen);
+			if(ret)
+			{
+				printf("解析HTTP报文失败,ret = %d\n",ret);
+				return -1;
+			}
 			send(iCli_sockfd,"服务器已接收并成功处理请求",strlen("服务器已接收并成功处理请求"),0);
 			close(iCli_sockfd);
 			exit(0);	
