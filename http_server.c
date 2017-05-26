@@ -59,14 +59,8 @@ int main()
 		if((pid = fork()) == 0)		/*如果为子进程*/
 		{
 			close(iSockfd);
-//			recv(iCli_sockfd,aRecv_msg,sizeof(aRecv_msg)-1,0);
 			sock_readn(iCli_sockfd,aRecv_msg,iLen);
-			printf("接收到的请求信息为:[%s],父进程编号[%d],子进程编号[%d]\n",aRecv_msg,getppid(),getpid());
-			for(i = 0;i < iLen;i++)
-			{
-				printf("%d",aRecv_msg[i]);
-			}
-			printf("\n");
+			nAnalyzeHttpRequestInfo(aRecv_msg,iLen);
 			send(iCli_sockfd,"服务器已接收并成功处理请求",strlen("服务器已接收并成功处理请求"),0);
 			close(iCli_sockfd);
 			exit(0);	

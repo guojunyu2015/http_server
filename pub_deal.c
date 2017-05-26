@@ -72,6 +72,7 @@ int sock_readn(int iSock_fd,char *aStr_tmp,int iLen)
 
 void sig_chld( int signo)
 {
+	printf("receive sig_chld signal\n");
 	pid_t pid;
 	int stat;
 	while( (pid = waitpid(-1,&stat,WNOHANG)) > 0)
@@ -80,4 +81,57 @@ void sig_chld( int signo)
 	}
 	
 	return;
+}
+
+/*********************************************************
+ ** 函数名  :   nAnalyzeHttpRequestInfo(char *aRcv_msg) 
+ ** 功能    :   解析HTTP请求报文
+ ** 全局变量:
+ ** 入口参数:	aRcv_msg	HTTP服务器请求报文
+ 				iMsg_len	请求报文长度   
+ ** 返回值:
+ ***********************************************************/
+int nAnalyzeHttpRequestInfo(char *aRcv_msg,int iMsg_len) 
+{
+	int i = 0;
+	char aLine_end[2+1];
+	char *start_tmp = NULL,*end_tmp = NULL;
+	ReqHttpMsg stReq_msg;
+	
+	memset(aLine_end,0x00,sizeof(aLine_end));
+	memset(&stReq_msg,0x00,sizeof(stReq_msg));
+	
+	printf("接收到的请求信息为:[%s]\n",aRcv_msg);
+	
+	/*开始解析HTTP报文格式,起始行 <method> <request-URL> <version>,默认以回车换行结尾*/
+	end_tmp = strchr(start_tmp,' ');
+	if(end_tmp == NULL)
+	{
+		printf("ERROR 解析method失败\n");
+		return -1;
+	}
+	memcpy(stReq_msg.aMethod,start_tmp,end_tmp - start_tmp);
+	start_tmp = end_tmp + 1;
+	
+	end_tmp = strchr(start_tmp,' ');
+	if(end_tmp == NULL)
+	{
+		printf("ERROR 解析request_url失败\n");
+		return -1;
+	}
+	memcpy(stReq_msg.aRequest_url,start_tmp,end_tmp - start_tmp);
+	start_tmp = end_tmp + 1;
+	
+	end_tmp = strchr(start_tmp,' ');
+	if(end_tmp == NULL)
+	{
+		printf("ERROR 解析version失败\n");
+		return -1;
+	}
+	memcpy(stReq_msg.aVersion,start_tmp,end_tmp - start_tmp);
+	start_tmp = end_tmp + 1;
+	printf("test\n");
+	printf("method:[%s],URL:[%s],version:[%s]\n",stReq_msg.aMethod,stReq_msg.aRequest_url,stReq_msg.aVersion);
+	
+	return 0;
 }
