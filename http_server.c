@@ -57,13 +57,12 @@ int main()
 		if((pid = fork()) == 0)		/*如果为子进程*/
 		{
 			close(iSockfd);
-			ret = nAnalyzeHttpRequestInfo(iCli_sockfd);
+			ret = nHttpInfoDeal(iCli_sockfd);
 			if(ret)
 			{
 				printf("解析HTTP报文失败,ret = %d\n",ret);
 				return -1;
 			}
-			send(iCli_sockfd,"服务器已接收并成功处理请求",strlen("服务器已接收并成功处理请求"),0);
 			close(iCli_sockfd);
 			exit(0);	
 		}

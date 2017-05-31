@@ -12,9 +12,15 @@
 #include <sys/select.h>
 
 void sig_chld( int signo);
-int nAnalyzeHttpRequestInfo(int iSock_fd);
+int nHttpInfoDeal(int iSock_fd);
 
 /*HTTP请求报文首部信息*/
+/*
+	<method> <request-URL> <version>
+	<headers>
+	
+	<entity-body>
+*/
 typedef struct http_head_info
 {
 	char aMethod[6+1];		/*方法*/
@@ -24,6 +30,12 @@ typedef struct http_head_info
 }ReqHeadMsg;
 
 /*HTTP应答报文首部信息*/
+/*
+	<version> <status> <reason-phrase>
+	<headers>
+	
+	<entity-body>
+*/
 typedef struct rsp_http_msg
 {	
 	char aVersion[32];		/*版本*/
