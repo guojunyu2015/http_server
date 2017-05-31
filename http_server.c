@@ -9,7 +9,6 @@ int main()
 	int iSockfd = 0;
 	int iCli_sockfd = 0,iLen = 0;
 	char aIp_addr[64+1];
-	char aRecv_msg[2048];
 	int pid,i;
 	
 	signal(SIGCHLD,&sig_chld);
@@ -42,7 +41,6 @@ int main()
 	}
 	while(1)
 	{
-		memset(aRecv_msg,0x00,sizeof(aRecv_msg));
 		memset(&stClient_addr,0x00,sizeof(stClient_addr));
 		iCli_sockfd = 0;
 		
@@ -59,8 +57,7 @@ int main()
 		if((pid = fork()) == 0)		/*如果为子进程*/
 		{
 			close(iSockfd);
-			sock_readn(iCli_sockfd,aRecv_msg,iLen);
-			ret = nAnalyzeHttpRequestInfo(aRecv_msg,iLen);
+			ret = nAnalyzeHttpRequestInfo(iCli_sockfd);
 			if(ret)
 			{
 				printf("解析HTTP报文失败,ret = %d\n",ret);

@@ -11,22 +11,19 @@
 #include <sys/time.h>
 #include <sys/select.h>
 
-int sock_writen(int iSock_fd,char *aStr_tmp,int iLen);
-int sock_readn(int iSock_fd,char *aStr_tmp,int iLen);
 void sig_chld( int signo);
-int nAnalyzeHttpRequestInfo(char *aRcv_msg,int iMsg_len);
+int nAnalyzeHttpRequestInfo(int iSock_fd);
 
-/*HTTP请求报文明细*/
-typedef struct req_http_msg
+/*HTTP请求报文首部信息*/
+typedef struct http_head_info
 {
 	char aMethod[6+1];		/*方法*/
 	char aRequest_url[64];	/*请求URL*/
 	char aVersion[32];		/*版本号*/
-	char aHeaders[256];		/*首部块*/
-	char aEntry_body[1024];	/*主体*/
-}ReqHttpMsg;
+	int  iBody_len;			/*报文体长度,根据首部中的Content-type(类型),Content-length(长度)来判断*/
+}ReqHeadMsg;
 
-/*HTTP应答报文明细*/
+/*HTTP应答报文首部信息*/
 typedef struct rsp_http_msg
 {	
 	char aVersion[32];		/*版本*/
@@ -35,3 +32,9 @@ typedef struct rsp_http_msg
 	char aHeader[64];
 	char aEntry[1024];
 }RspHttpMsg;
+
+typedef struct head_line_info
+{
+	char aTitle[256];	/*标题*/
+	char aMsg[1024];	/*内容*/
+}HeadLineInfo;

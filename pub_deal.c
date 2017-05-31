@@ -38,42 +38,47 @@ int sock_writen(int iSock_fd,char *aStr_tmp,int iLen)
 }
 
 /*********************************************************
- ** 函数名  :   sock_readn(int iSock_fd,char *aStr_tmp,int iLen)
+ ** 函数名  :   read_line(int iSock_fd,char *aStr_tmp,int iLen,int iFlag)
  ** 功能    :   按指定长度读取socket描述符中的报文
  ** 全局变量:
- ** 入口参数:
+ ** 入口参数:	iSock_fd	请求socket文件描述符
+ 				iLen		可以读取的最大长度
+ ** 出口参数:	aStr_tmp	读取到的数据
+ 				
  ** 返回值:
  ***********************************************************/
-int sock_readn(int iSock_fd,char *aStr_tmp,int iLen)
+int read_line(int iSock_fd,char *aStr_tmp,int iLen)
 {
-	printf("进程号[%d],开始读取数据,待读取数据长度为[%d]\n",getpid(),iLen);
-	int iByte_left = iLen;
-	int iRead_len = 0;
-	char *ptr = aStr_tmp;
-	
-	while(iByte_left > 0)
+	/*HTTP协议采用回车换行符当做结束符,没有专门的长度域,采用回车换行符(或者单个回车符)来进行区分,逐个字符进行读取判断*/
+	char c = '\0';
+	int i = 0,n;
+	while(i < iLen && c != '\n')
 	{
-		iRead_len = read(iSock_fd,ptr,iByte_left);
-		printf("已读取长度为[%d]\n",iRead_len);
-		if(iRead_len == -1)
+		n = recv(iSock_fd,&c,1,0);
+		if(n > 0)
 		{
-			if(errno = EINTR)
-				iRead_len = 0;
-			else
+			if(c == '\r')
 			{
-				printf("读取报文失败,失败原因[%s]\n",strerror(errno));
-				return -1;
+				/*MSG_PEEK参数是为了防止下一个字符不是换行符,能够使该字符还保存在缓冲区中*/
+				n = recv(iSock_fd,&c,1,MSG_PEEK);
+				if(n > 0 && c == '\n')
+				{
+					recv(iSock_fd,&c,1,0);
+					c = '\n';
+				}
+				else
+					c = '\n';
 			}
+			aStr_tmp[i] = c;
+			i++;
 		}
-		else if(iRead_len == 0)		/*已经读取不到数据*/
+		else
 		{
-			break;
+			c = '\n';
 		}
-		iByte_left -= iRead_len;
-		ptr += iRead_len;
 	}
+	aStr_tmp[i] = '\0';
 	
-	printf("进程号[%d],读取数据结束\n",getpid());
 	return 0;
 }
 
@@ -97,26 +102,29 @@ void sig_chld( int signo)
 }
 
 /*********************************************************
- ** 函数名  :   nAnalyzeHttpRequestInfo(char *aRcv_msg) 
+ ** 函数名  :   nAnalyzeHttpRequestInfo(int iSock_fd)
  ** 功能    :   解析HTTP请求报文
  ** 全局变量:
- ** 入口参数:	aRcv_msg	HTTP服务器请求报文
-                iMsg_len	请求报文长度   
+ ** 入口参数:	iSock_fd	客户端socket描述符
  ** 返回值:
  ***********************************************************/
-int nAnalyzeHttpRequestInfo(char *aRcv_msg,int iMsg_len) 
+int nAnalyzeHttpRequestInfo(int iSock_fd) 
 {
-	int i = 0;
+	int i = 0,ret;
 	char aLine_end[2+1];
 	char *start_tmp = NULL,*end_tmp = NULL;
-	ReqHttpMsg stReq_msg;
+	char aRcv_msg[2048+1];
+	ReqHeadMsg stReq_msg;
+	HeadLineInfo stLine_info;
 	
 	memset(aLine_end,0x00,sizeof(aLine_end));
 	memset(&stReq_msg,0x00,sizeof(stReq_msg));
+	memset(aRcv_msg,0x00,sizeof(aRcv_msg));
 	
-	aLine_end[0] = 13;
-	aLine_end[1] = 10;
-//	printf("接收到的请求信息为:[%s]\n",aRcv_msg);
+	aLine_end[0] = 10;
+	
+	/*获取并解析起始行信息*/
+	read_line(iSock_fd,aRcv_msg,sizeof(aRcv_msg) - 1);
 	start_tmp = aRcv_msg;
 	/*开始解析HTTP报文格式,起始行 <method> <request-URL> <version>,默认以回车换行结尾*/
 	end_tmp = strchr(start_tmp,' ');
@@ -137,15 +145,46 @@ int nAnalyzeHttpRequestInfo(char *aRcv_msg,int iMsg_len)
 	memcpy(stReq_msg.aRequest_url,start_tmp,end_tmp - start_tmp);
 	start_tmp = end_tmp + 1;
 	
-	end_tmp = strstr(start_tmp,aLine_end);
+	end_tmp = strchr(start_tmp,'\n');
 	if(end_tmp == NULL)
 	{
 		printf("%d ERROR 解析version失败\n",__LINE__);
 		return -1;
 	}
 	memcpy(stReq_msg.aVersion,start_tmp,end_tmp - start_tmp);
-	start_tmp = end_tmp + 1;
+	start_tmp = end_tmp + strlen(aLine_end);
 	printf("method:[%s],URL:[%s],version:[%s]\n",stReq_msg.aMethod,stReq_msg.aRequest_url,stReq_msg.aVersion);
+	
+	/*至此,HTTP起始行的首部数据解析完成,开始解析首部块信息*/
+	for(i = 0;;i++)
+	{
+		memset(aRcv_msg,0x00,sizeof(aRcv_msg));
+		memset(&stLine_info,0x00,sizeof(stLine_info));
+		read_line(iSock_fd,aRcv_msg,sizeof(aRcv_msg) - 1);
+		if(strcmp(aRcv_msg,aLine_end) == 0)
+			break;
+		start_tmp = aRcv_msg;
+		end_tmp = strchr(aRcv_msg,':');
+		if(end_tmp == NULL)
+		{
+			printf("HTTP请求报文头非法,本行内容为:[%s]\n",aRcv_msg);
+			return -1;
+		}
+		memcpy(stLine_info.aTitle,start_tmp,end_tmp - start_tmp);
+		start_tmp = end_tmp + 2;
+		end_tmp = strchr(start_tmp,'\n');
+		memcpy(stLine_info.aMsg,start_tmp,end_tmp - start_tmp);
+		printf("title:[%s],msg:[%s]\n",stLine_info.aTitle,stLine_info.aMsg);
+		if(strcmp(stLine_info.aTitle,"Content-length") == 0)
+		{
+			stReq_msg.iBody_len = atoi(stLine_info.aMsg);
+		}
+	}
+	
+	/*开始解析数据部分*/
+	printf("HTTP请求报文中数据主体部分长度为:%d\n",stReq_msg.iBody_len);
+	memset(aRcv_msg,0x00,sizeof(aRcv_msg));
+	recv(iSock_fd,aRcv_msg,stReq_msg.iBody_len,0);
 	
 	return 0;
 }
