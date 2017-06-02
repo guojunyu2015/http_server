@@ -1,3 +1,6 @@
+#ifndef _PUB_INCLUDE_H_
+#define _PUB_INCLUDE_H_
+
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <stdio.h>
@@ -10,9 +13,6 @@
 #include <signal.h>
 #include <sys/time.h>
 #include <sys/select.h>
-
-void sig_chld( int signo);
-int nHttpInfoDeal(int iSock_fd);
 
 /*HTTP请求报文首部信息*/
 /*
@@ -50,3 +50,17 @@ typedef struct head_line_info
 	char aTitle[256];	/*标题*/
 	char aMsg[1024];	/*内容*/
 }HeadLineInfo;
+
+void sig_chld( int signo);
+int nAnalyseCfgFilePubDeal(char *aConfig_desc,char *aConfig_str);
+int nHttpInfoDeal(int iSock_fd);
+int nDealHttpMethod(ReqHeadMsg head_msg,char *rsp_info);
+int nResourceNotFound(ReqHeadMsg head_msg,char *rsp_info);
+
+/*交易全局结构体,该结构体内容对应http_server.conf配置文件中的配置信息*/
+struct tran_conf
+{
+	int debug_level;		/*日志打印级别*/
+}sgTransConf;
+
+#endif

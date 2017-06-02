@@ -152,12 +152,9 @@ int nHttpInfoDeal(int iSock_fd)
 		recv(iSock_fd,aRcv_msg,stReq_msg.iBody_len,0);
 	
 	
-	/*封装应答信息*/
-	sprintf(aRsp_msg,"HTTP/1.1 200 OK\n"
-					 "Content-type: text/plain\n"
-					 "Content-length: 19\n\n" 
-					 "Hi! I'm a message!\n");
-	printf("应答信息:[%s]\n",aRsp_msg);
+	nDealHttpMethod(stReq_msg,aRsp_msg);
+	printf("响应信息:[%s]\n",aRsp_msg);
+	
 	ret = send(iSock_fd,aRsp_msg,strlen(aRsp_msg),0);
 	if(ret < 0)
 	{
@@ -166,4 +163,175 @@ int nHttpInfoDeal(int iSock_fd)
 	}
 	printf("响应信息发送完成\n");
 	return 0;
+}
+
+/*********************************************************
+ ** 函数名  :   nDealHttpMethod(ReqHeadMsg head_msg,char *rsp_info)
+ ** 功能    :   处理HTTP请求信息并生成HTTP应答信息
+ ** 全局变量:
+ ** 入口参数:	head_msg	HTTP请求首行信息
+ 	出口参数:	rsp_info HTTP响应信息(包含了报文头和报文体)
+ ** 返回值:		0:成功 -1:失败
+ ***********************************************************/
+int nDealHttpMethod(ReqHeadMsg head_msg,char *rsp_info)
+{
+	char aStr_tmp[1024];
+	char aFile_name[128];
+	char aFile_dtl[2048];
+	FILE *fp = NULL;
+	
+	memset(aFile_name,0x00,sizeof(aFile_name));
+	memset(aStr_tmp,0x00,sizeof(aStr_tmp));
+	memset(aFile_dtl,0x00,sizeof(aFile_dtl));
+	
+	if(strcmp(head_msg.aRequest_url,"/") == 0)
+		strncpy(aFile_name,"./docs/index.txt",sizeof(aFile_name) -1);
+	
+	if(strcmp(head_msg.aMethod,"GET") == 0)	/*如果为GET方法*/
+	{
+		fp = fopen(aFile_name,"r");
+		if(fp == NULL)
+		{
+			printf("打开文件[%s]失败,errno = %d,[%s]\n",aFile_name,errno,strerror(errno));
+			nResourceNotFound(head_msg,rsp_info);
+			return 0;
+		}
+		while(!feof(fp))
+		{
+			memset(aStr_tmp,0x00,sizeof(aStr_tmp));
+			fgets(aStr_tmp,sizeof(aStr_tmp)-1,fp);
+			sprintf(aFile_dtl,"%s%s",aFile_dtl,aStr_tmp);
+		}
+	}
+	
+	/*封装HTTP应答报文*/
+	sprintf(rsp_info,"%s 200 OK\r\n"
+					 "Content-type: text/plain\r\n"
+					 "Content-length: %d\r\n"
+					 "\r\n"
+					 "%s",head_msg.aVersion,(int)strlen(aFile_dtl),aFile_dtl);
+	
+	return 0;
+}
+
+/*********************************************************
+ ** 函数名  :   nResourceNotFound(ReqHeadMsg head_msg,char *rsp_info)
+ ** 功能    :   如果请求资源不存在,生成资源不存在的应答信息
+ ** 全局变量:
+ ** 入口参数:	head_msg	HTTP请求首行信息
+ 	出口参数:	rsp_info HTTP响应信息(包含了报文头和报文体)
+ ** 返回值:		0:成功 -1:失败
+ ***********************************************************/
+int nResourceNotFound(ReqHeadMsg head_msg,char *rsp_info)
+{
+	sprintf(rsp_info,"%s 400 Resource not exist /(ㄒoㄒ)/~~\r\n"
+					 "Content-type: text/html\r\n"
+					 "\r\n"
+					 "<P>Your browser sent a bad request\r\n",
+					 head_msg.aVersion);
+	return 0;
+}
+
+/*********************************************************
+ ** 函数名  :   nAnalyseCfgFilePubDeal(char *aConfig_desc,char *aConfig_str) 
+ ** 功能    :   解析配置文件内容
+ ** 全局变量:
+ ** 入口参数:   aConfig_desc：配置信息描述符
+ 	出口参数:	aConfig_str:配置详细信息
+ ** 返回值:
+ ***********************************************************/
+int nAnalyseCfgFilePubDeal(char *aConfig_desc,char *aConfig_str)
+{
+	FILE *fp = NULL;
+	char aStr_tmp[4096+1];
+	char aConfig_tmp[128+1];
+	long lStart_flag = 0; /*0-未起始 1-起始*/
+	char *aStart_tmp,*aEnd_tmp;
+	int  iMatch_flag = 0;	/*匹配标志:0-未匹配 1-已匹配*/
+	fp = fopen("http_server.cfg","r");
+	if (fp == NULL)
+	{
+		printf("open config file http_server.cfg fail\n");
+		return -1;
+	}
+	while(feof(fp) == 0 && iMatch_flag == 0)
+	{
+		memset (aStr_tmp,0x00,sizeof(aStr_tmp));
+		memset(aConfig_tmp,0x00,sizeof(aConfig_tmp));
+		aStart_tmp = NULL;
+		fgets(aStr_tmp,sizeof(aStr_tmp)-1,fp);
+		aStart_tmp = strchr(aStr_tmp,'\n');
+		if(aStart_tmp)
+			aStr_tmp[strlen(aStr_tmp) - 1] = '\0';
+		
+		/*如果为注释行或空行,则跳到下一行处理*/
+		if (aStr_tmp[0] == '#' || strlen(aStr_tmp) == 0)
+			continue;
+		
+		aStart_tmp = aStr_tmp;
+		aEnd_tmp = strchr(aStr_tmp,':');
+		if(aEnd_tmp == NULL)
+		{
+			printf("配置行非法,本行信息:[%s]\n",aStr_tmp);
+			return -1;
+		}
+		
+		memcpy(aConfig_tmp,aStart_tmp,aEnd_tmp-aStart_tmp);
+		if(strcmp(aConfig_tmp,aConfig_desc) != 0)
+			continue;
+		
+		aEnd_tmp++;
+		strcpy(aConfig_str,aEnd_tmp);
+		iMatch_flag = 1;
+	}
+	
+	if (iMatch_flag == 0)
+	{
+		printf("config_type[%s] is not exist,please confirm\n",aConfig_desc);
+		return -1;
+	}
+	return 0;
+}
+
+/*********************************************************
+ ** 函数名  :   bsWPubDebug(char *aFile_name,char *fmt,...) 
+ ** 功能    :   日志打印公共函数
+ ** 全局变量:
+ ** 参数含义:   
+ ** 返回值:
+ ***********************************************************/
+void bsWPubDebug(int iDebug_level,char *aLog_file_name,char *fmt,...)
+{
+	FILE *fp;
+	char aFile_name[64];
+	va_list ap;
+	char aStr_tmp[256];
+	char aTime_stamp[24+1];		/*时间戳*/
+	struct  tm *systime;
+    time_t  t;
+    
+    /*判断当前配置的日志级别*/
+    if(iDebug_level > sgTransConf.debug_level)
+    	return;
+    
+    time(&t);
+    systime = localtime(&t);
+    sprintf(aTime_stamp,"%04d%02d%02d-%02d:%02d:%02d",
+    					systime->tm_year+1900,systime->tm_mon+1,systime->tm_mday,
+    					systime->tm_hour,systime->tm_min,systime->tm_sec);
+	memset(aFile_name,0x00,sizeof(aFile_name));
+	memset(aStr_tmp,0x00,sizeof(aStr_tmp));
+	fp = NULL;
+	sprintf(aFile_name,"./log/%s.log",aServ_name);
+	fp = fopen(aFile_name,"a+");
+	if(fp == NULL)
+	{
+		printf("打开文件[%s]失败",aFile_name);
+		return;
+	}
+	va_start(ap,fmt);
+	vsnprintf(aStr_tmp,sizeof(aStr_tmp),fmt,ap);
+	va_end(ap);
+	fprintf(fp,"[%s]FILE:[%s] %s\n",aTime_stamp,aLog_file_name,aStr_tmp);
+	fclose(fp);
 }
