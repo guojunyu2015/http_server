@@ -10,15 +10,24 @@ int main()
 	int iCli_sockfd = 0,iLen = 0;
 	char aIp_addr[64+1];
 	int pid,i;
+	char aLog_filename[64];
+	pthread_t new_thread;
 	
-	signal(SIGCHLD,&sig_chld);
+	memset(aLog_filename,0x00,sizeof(aLog_filename));
+	strcpy(aLog_filename,"main_thread");
+	
+	/*解析全局结构体*/
+	nAnalyseCfgFilePubDeal("DEBUG_LEVEL",sgTransConf.aDebug_level);
+	printf("配置文件中日志打印级别为:%s\n",sgTransConf.aDebug_level);
+	
 	iSockfd = socket(AF_INET,SOCK_STREAM,0);
 	if(iSockfd == -1)
 	{
-		printf("创建socket句柄失败,失败原因[%s]\n",strerror(errno));
+		bsWPubDebug(3,aLog_filename,"创建socket句柄失败,失败原因[%s]",strerror(errno));
 		return -1;
 	}
-	printf("文件描述符:[%d],服务端进程号:[%d]\n",iSockfd,getpid());
+	bsWPubDebug(3,aLog_filename,"文件描述符:[%d],服务端进程号:[%d]",iSockfd,getpid());
+	
 	memset(&stServer_addr,0x00,sizeof(stServer_addr));
 	memset(&stClient_addr,0x00,sizeof(stClient_addr));
 	memset(aIp_addr,0x00,sizeof(aIp_addr));
@@ -29,14 +38,14 @@ int main()
 	ret = bind(iSockfd,(struct sockaddr*)&stServer_addr,sizeof(stServer_addr));
 	if(ret == -1)
 	{
-		printf("绑定端口失败,失败原因:[%s]\n",strerror(errno));
+		bsWPubDebug(3,aLog_filename,"绑定端口失败,失败原因:[%s]",strerror(errno));
 		return -1;
 	}
 
 	ret = listen(iSockfd,5);
 	if(ret == -1)
 	{
-		printf("开启监听失败,失败原因[%s]\n",strerror(errno));
+		bsWPubDebug(3,aLog_filename,"开启监听失败,失败原因[%s]",strerror(errno));
 		return -1;
 	}
 	while(1)
@@ -48,26 +57,19 @@ int main()
 		iCli_sockfd = accept(iSockfd,(struct sockaddr*)&stClient_addr,&iLen);
 		if(iCli_sockfd == -1)
 		{
-			printf("接收失败,iSockfd = [%d],失败原因[%s],进程号[%d]\n",iSockfd,strerror(errno),getpid());
+			bsWPubDebug(3,aLog_filename,"接收失败,iSockfd = [%d],失败原因[%s],进程号[%d]",iSockfd,strerror(errno),getpid());
 			return -1;
 		}
 		inet_ntop(AF_INET,&stClient_addr.sin_addr.s_addr,aIp_addr,sizeof(aIp_addr)-1);
-		printf("\n接收到请求,IP:[%s],端口号:[%d],请求报文长度:[%d]\n",
+		bsWPubDebug(3,aLog_filename,"接收到请求,IP:[%s],端口号:[%d],请求报文长度:[%d]",
 				aIp_addr,ntohs(stClient_addr.sin_port),iLen);
-		if((pid = fork()) == 0)		/*如果为子进程*/
-		{
-			close(iSockfd);
-			ret = nHttpInfoDeal(iCli_sockfd);
-			if(ret)
-			{
-				printf("解析HTTP报文失败,ret = %d\n",ret);
-				return -1;
-			}
-			close(iCli_sockfd);
-			exit(0);	
-		}
 		
-		close(iCli_sockfd);
+		/*创建子线程执行请求处理*/
+		if(pthread_create(&new_thread,NULL,nHttpInfoDeal,(void *)iCli_sockfd) != 0)
+		{
+			bsWPubDebug(3,aLog_filename,"创建子线程失败,失败原因[%s]",strerror(errno));
+		}
+		bsWPubDebug(3,aLog_filename,"该笔请求由子线程[%lu]执行",new_thread);
 	}
 	
 	return 0;

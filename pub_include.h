@@ -13,6 +13,8 @@
 #include <signal.h>
 #include <sys/time.h>
 #include <sys/select.h>
+#include <pthread.h>
+#include <stdarg.h>
 
 /*HTTP请求报文首部信息*/
 /*
@@ -53,14 +55,15 @@ typedef struct head_line_info
 
 void sig_chld( int signo);
 int nAnalyseCfgFilePubDeal(char *aConfig_desc,char *aConfig_str);
-int nHttpInfoDeal(int iSock_fd);
+void * nHttpInfoDeal(void  *t);
 int nDealHttpMethod(ReqHeadMsg head_msg,char *rsp_info);
 int nResourceNotFound(ReqHeadMsg head_msg,char *rsp_info);
+void bsWPubDebug(int debug_level,char *aLog_file_name,char *fmt,...);
 
 /*交易全局结构体,该结构体内容对应http_server.conf配置文件中的配置信息*/
 struct tran_conf
 {
-	int debug_level;		/*日志打印级别*/
+	char aDebug_level[2+1];
 }sgTransConf;
 
 #endif

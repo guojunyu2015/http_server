@@ -71,22 +71,35 @@ void sig_chld( int signo)
  ** 入口参数:	iSock_fd	客户端socket描述符
  ** 返回值:
  ***********************************************************/
-int nHttpInfoDeal(int iSock_fd) 
+void * nHttpInfoDeal(void  *t) 
 {
 	int i = 0,ret;
 	char aLine_end[2+1];
 	char *start_tmp = NULL,*end_tmp = NULL;
 	char aRcv_msg[2048+1];
 	char aRsp_msg[2048+1];	/*应答信息*/
+	int  iSock_fd;
 	ReqHeadMsg stReq_msg;
 	HeadLineInfo stLine_info;
+	char aLog_filenm[64];
+	struct timeval t_start,t_end;
+	double fRun_time = 0.00;	/*运行时间*/
+	
+	/*获取运行起始时间*/
+	gettimeofday(&t_start,NULL);
 	
 	memset(aLine_end,0x00,sizeof(aLine_end));
 	memset(&stReq_msg,0x00,sizeof(stReq_msg));
 	memset(aRcv_msg,0x00,sizeof(aRcv_msg));
 	memset(aRsp_msg,0x00,sizeof(aRsp_msg));
+	memset(aLog_filenm,0x00,sizeof(aLog_filenm));
 	
+	/*封装日志文件名*/
+	sprintf(aLog_filenm,"thread_%lu",pthread_self());
+	iSock_fd = (int)t;
 	aLine_end[0] = 10;
+	
+	bsWPubDebug(3,aLog_filenm,"%d 接收到客户端请求,客户端socket描述符:[%d]",__LINE__,iSock_fd);
 	
 	/*获取并解析起始行信息*/
 	read_line(iSock_fd,aRcv_msg,sizeof(aRcv_msg) - 1);
@@ -95,8 +108,8 @@ int nHttpInfoDeal(int iSock_fd)
 	end_tmp = strchr(start_tmp,' ');
 	if(end_tmp == NULL)
 	{
-		printf("%d ERROR 解析method失败\n",__LINE__);
-		return -1;
+		bsWPubDebug(3,aLog_filenm,"%d ERROR 解析method失败",__LINE__);
+		return (void *)-1;
 	}
 	memcpy(stReq_msg.aMethod,start_tmp,end_tmp - start_tmp);
 	start_tmp = end_tmp + 1;
@@ -104,8 +117,8 @@ int nHttpInfoDeal(int iSock_fd)
 	end_tmp = strchr(start_tmp,' ');
 	if(end_tmp == NULL)
 	{
-		printf("%d ERROR 解析request_url失败\n",__LINE__);
-		return -1;
+		bsWPubDebug(3,aLog_filenm,"%d ERROR 解析request_url失败",__LINE__);
+		return (void *)-1;
 	}
 	memcpy(stReq_msg.aRequest_url,start_tmp,end_tmp - start_tmp);
 	start_tmp = end_tmp + 1;
@@ -113,12 +126,12 @@ int nHttpInfoDeal(int iSock_fd)
 	end_tmp = strchr(start_tmp,'\n');
 	if(end_tmp == NULL)
 	{
-		printf("%d ERROR 解析version失败\n",__LINE__);
-		return -1;
+		bsWPubDebug(3,aLog_filenm,"%d ERROR 解析version失败n",__LINE__);
+		return (void *)-1;
 	}
 	memcpy(stReq_msg.aVersion,start_tmp,end_tmp - start_tmp);
 	start_tmp = end_tmp + strlen(aLine_end);
-	printf("method:[%s],URL:[%s],version:[%s]\n",stReq_msg.aMethod,stReq_msg.aRequest_url,stReq_msg.aVersion);
+	bsWPubDebug(3,aLog_filenm,"method:[%s],URL:[%s],version:[%s]",stReq_msg.aMethod,stReq_msg.aRequest_url,stReq_msg.aVersion);
 	
 	/*至此,HTTP起始行的首部数据解析完成,开始解析首部块信息*/
 	for(i = 0;;i++)
@@ -132,8 +145,8 @@ int nHttpInfoDeal(int iSock_fd)
 		end_tmp = strchr(aRcv_msg,':');
 		if(end_tmp == NULL)
 		{
-			printf("HTTP请求报文头非法,本行内容为:[%s]\n",aRcv_msg);
-			return -1;
+			bsWPubDebug(3,aLog_filenm,"HTTP请求报文头非法,本行内容为:[%s]",aRcv_msg);
+			return (void *)-1;
 		}
 		memcpy(stLine_info.aTitle,start_tmp,end_tmp - start_tmp);
 		start_tmp = end_tmp + 2;
@@ -146,23 +159,31 @@ int nHttpInfoDeal(int iSock_fd)
 	}
 	
 	/*开始解析数据部分*/
-	printf("HTTP请求报文中数据主体部分长度为:%d\n",stReq_msg.iBody_len);
+	bsWPubDebug(3,aLog_filenm,"HTTP请求报文中数据主体部分长度为:%d",stReq_msg.iBody_len);
 	memset(aRcv_msg,0x00,sizeof(aRcv_msg));
 	if(stReq_msg.iBody_len > 0)
 		recv(iSock_fd,aRcv_msg,stReq_msg.iBody_len,0);
 	
 	
 	nDealHttpMethod(stReq_msg,aRsp_msg);
-	printf("响应信息:[%s]\n",aRsp_msg);
+	bsWPubDebug(3,aLog_filenm,"响应信息:[%s]",aRsp_msg);
 	
 	ret = send(iSock_fd,aRsp_msg,strlen(aRsp_msg),0);
 	if(ret < 0)
 	{
-		printf("调用send函数失败,errno = %d,[%s]\n",errno,strerror(errno));
-		return -1;
+		bsWPubDebug(3,aLog_filenm,"调用send函数失败,errno = %d,[%s]",errno,strerror(errno));
+		return (void *)-1;
 	}
-	printf("响应信息发送完成\n");
-	return 0;
+	bsWPubDebug(3,aLog_filenm,"响应信息发送完成");
+	close(iSock_fd);
+	
+	/*获取运行结束时间*/
+	gettimeofday(&t_end,NULL);
+	
+	/*计算运行时间*/
+	fRun_time = (t_end.tv_sec - t_start.tv_sec) * 1000 + (t_end.tv_usec - t_start.tv_usec) / 1000;
+	bsWPubDebug(3,aLog_filenm,"运行时间[%.3f]毫秒",fRun_time);
+	return (void *)0;
 }
 
 /*********************************************************
@@ -269,7 +290,7 @@ int nAnalyseCfgFilePubDeal(char *aConfig_desc,char *aConfig_str)
 			continue;
 		
 		aStart_tmp = aStr_tmp;
-		aEnd_tmp = strchr(aStr_tmp,':');
+		aEnd_tmp = strchr(aStr_tmp,'=');
 		if(aEnd_tmp == NULL)
 		{
 			printf("配置行非法,本行信息:[%s]\n",aStr_tmp);
@@ -300,29 +321,32 @@ int nAnalyseCfgFilePubDeal(char *aConfig_desc,char *aConfig_str)
  ** 参数含义:   
  ** 返回值:
  ***********************************************************/
-void bsWPubDebug(int iDebug_level,char *aLog_file_name,char *fmt,...)
+void bsWPubDebug(int debug_level,char *aLog_file_name,char *fmt,...)
 {
 	FILE *fp;
 	char aFile_name[64];
 	va_list ap;
 	char aStr_tmp[256];
-	char aTime_stamp[24+1];		/*时间戳*/
+	char aTime_stamp[64+1];		/*时间戳*/
 	struct  tm *systime;
     time_t  t;
+    struct timeval t_sec;
     
     /*判断当前配置的日志级别*/
-    if(iDebug_level > sgTransConf.debug_level)
+    if(debug_level > atoi(sgTransConf.aDebug_level))
     	return;
-    
     time(&t);
     systime = localtime(&t);
-    sprintf(aTime_stamp,"%04d%02d%02d-%02d:%02d:%02d",
+   	
+    gettimeofday(&t_sec,NULL);
+    sprintf(aTime_stamp,"%04d-%02d-%02d %02d:%02d:%02d.%d",
     					systime->tm_year+1900,systime->tm_mon+1,systime->tm_mday,
-    					systime->tm_hour,systime->tm_min,systime->tm_sec);
+    					systime->tm_hour,systime->tm_min,systime->tm_sec,
+    					t_sec.tv_usec);
 	memset(aFile_name,0x00,sizeof(aFile_name));
 	memset(aStr_tmp,0x00,sizeof(aStr_tmp));
 	fp = NULL;
-	sprintf(aFile_name,"./log/%s.log",aServ_name);
+	sprintf(aFile_name,"./log/%s.log",aLog_file_name);
 	fp = fopen(aFile_name,"a+");
 	if(fp == NULL)
 	{
@@ -332,6 +356,6 @@ void bsWPubDebug(int iDebug_level,char *aLog_file_name,char *fmt,...)
 	va_start(ap,fmt);
 	vsnprintf(aStr_tmp,sizeof(aStr_tmp),fmt,ap);
 	va_end(ap);
-	fprintf(fp,"[%s]FILE:[%s] %s\n",aTime_stamp,aLog_file_name,aStr_tmp);
+	fprintf(fp,"[%s] %s\n",aTime_stamp,aStr_tmp);
 	fclose(fp);
 }
