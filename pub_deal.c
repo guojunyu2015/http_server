@@ -99,7 +99,7 @@ void * nHttpInfoDeal(void  *t)
 	iSock_fd = (int)t;
 	aLine_end[0] = 10;
 	
-	bsWPubDebug(3,aLog_filenm,"%d 接收到客户端请求,客户端socket描述符:[%d]",__LINE__,iSock_fd);
+	Debug(3,aLog_filenm,"接收到客户端请求,客户端socket描述符:[%d]",iSock_fd);
 	
 	/*获取并解析起始行信息*/
 	read_line(iSock_fd,aRcv_msg,sizeof(aRcv_msg) - 1);
@@ -108,7 +108,7 @@ void * nHttpInfoDeal(void  *t)
 	end_tmp = strchr(start_tmp,' ');
 	if(end_tmp == NULL)
 	{
-		bsWPubDebug(3,aLog_filenm,"%d ERROR 解析method失败",__LINE__);
+		Debug(3,aLog_filenm,"%d ERROR 解析method失败",__LINE__);
 		return (void *)-1;
 	}
 	memcpy(stReq_msg.aMethod,start_tmp,end_tmp - start_tmp);
@@ -117,7 +117,7 @@ void * nHttpInfoDeal(void  *t)
 	end_tmp = strchr(start_tmp,' ');
 	if(end_tmp == NULL)
 	{
-		bsWPubDebug(3,aLog_filenm,"%d ERROR 解析request_url失败",__LINE__);
+		Debug(3,aLog_filenm,"%d ERROR 解析request_url失败",__LINE__);
 		return (void *)-1;
 	}
 	memcpy(stReq_msg.aRequest_url,start_tmp,end_tmp - start_tmp);
@@ -126,12 +126,12 @@ void * nHttpInfoDeal(void  *t)
 	end_tmp = strchr(start_tmp,'\n');
 	if(end_tmp == NULL)
 	{
-		bsWPubDebug(3,aLog_filenm,"%d ERROR 解析version失败n",__LINE__);
+		Debug(3,aLog_filenm,"%d ERROR 解析version失败n",__LINE__);
 		return (void *)-1;
 	}
 	memcpy(stReq_msg.aVersion,start_tmp,end_tmp - start_tmp);
 	start_tmp = end_tmp + strlen(aLine_end);
-	bsWPubDebug(3,aLog_filenm,"method:[%s],URL:[%s],version:[%s]",stReq_msg.aMethod,stReq_msg.aRequest_url,stReq_msg.aVersion);
+	Debug(3,aLog_filenm,"method:[%s],URL:[%s],version:[%s]",stReq_msg.aMethod,stReq_msg.aRequest_url,stReq_msg.aVersion);
 	
 	/*至此,HTTP起始行的首部数据解析完成,开始解析首部块信息*/
 	for(i = 0;;i++)
@@ -145,7 +145,7 @@ void * nHttpInfoDeal(void  *t)
 		end_tmp = strchr(aRcv_msg,':');
 		if(end_tmp == NULL)
 		{
-			bsWPubDebug(3,aLog_filenm,"HTTP请求报文头非法,本行内容为:[%s]",aRcv_msg);
+			Debug(3,aLog_filenm,"HTTP请求报文头非法,本行内容为:[%s]",aRcv_msg);
 			return (void *)-1;
 		}
 		memcpy(stLine_info.aTitle,start_tmp,end_tmp - start_tmp);
@@ -159,22 +159,22 @@ void * nHttpInfoDeal(void  *t)
 	}
 	
 	/*开始解析数据部分*/
-	bsWPubDebug(3,aLog_filenm,"HTTP请求报文中数据主体部分长度为:%d",stReq_msg.iBody_len);
+	Debug(3,aLog_filenm,"HTTP请求报文中数据主体部分长度为:%d",stReq_msg.iBody_len);
 	memset(aRcv_msg,0x00,sizeof(aRcv_msg));
 	if(stReq_msg.iBody_len > 0)
 		recv(iSock_fd,aRcv_msg,stReq_msg.iBody_len,0);
 	
 	
 	nDealHttpMethod(stReq_msg,aRsp_msg);
-	bsWPubDebug(3,aLog_filenm,"响应信息:[%s]",aRsp_msg);
+	Debug(3,aLog_filenm,"响应信息:[%s]",aRsp_msg);
 	
 	ret = send(iSock_fd,aRsp_msg,strlen(aRsp_msg),0);
 	if(ret < 0)
 	{
-		bsWPubDebug(3,aLog_filenm,"调用send函数失败,errno = %d,[%s]",errno,strerror(errno));
+		Debug(3,aLog_filenm,"调用send函数失败,errno = %d,[%s]",errno,strerror(errno));
 		return (void *)-1;
 	}
-	bsWPubDebug(3,aLog_filenm,"响应信息发送完成");
+	Debug(3,aLog_filenm,"响应信息发送完成");
 	close(iSock_fd);
 	
 	/*获取运行结束时间*/
@@ -182,7 +182,7 @@ void * nHttpInfoDeal(void  *t)
 	
 	/*计算运行时间*/
 	fRun_time = (t_end.tv_sec - t_start.tv_sec) * 1000 + (t_end.tv_usec - t_start.tv_usec) / 1000;
-	bsWPubDebug(3,aLog_filenm,"运行时间[%.3f]毫秒",fRun_time);
+	Debug(3,aLog_filenm,"本次请求处理完成,运行时间[%.3f]毫秒(*^__^*)",fRun_time);
 	return (void *)0;
 }
 
@@ -315,13 +315,13 @@ int nAnalyseCfgFilePubDeal(char *aConfig_desc,char *aConfig_str)
 }
 
 /*********************************************************
- ** 函数名  :   bsWPubDebug(char *aFile_name,char *fmt,...) 
+ ** 函数名  :   bsWPubDebug(char *func_name,int file_line,int debug_level,char *aLog_file_name,char *fmt,...)
  ** 功能    :   日志打印公共函数
  ** 全局变量:
  ** 参数含义:   
  ** 返回值:
  ***********************************************************/
-void bsWPubDebug(int debug_level,char *aLog_file_name,char *fmt,...)
+void bsWPubDebug(const char *func_name,const int file_line,int debug_level,char *aLog_file_name,char *fmt,...)
 {
 	FILE *fp;
 	char aFile_name[64];
@@ -339,7 +339,7 @@ void bsWPubDebug(int debug_level,char *aLog_file_name,char *fmt,...)
     systime = localtime(&t);
    	
     gettimeofday(&t_sec,NULL);
-    sprintf(aTime_stamp,"%04d-%02d-%02d %02d:%02d:%02d.%d",
+    sprintf(aTime_stamp,"%04d-%02d-%02d %02d:%02d:%02d.%ld",
     					systime->tm_year+1900,systime->tm_mon+1,systime->tm_mday,
     					systime->tm_hour,systime->tm_min,systime->tm_sec,
     					t_sec.tv_usec);
@@ -356,6 +356,10 @@ void bsWPubDebug(int debug_level,char *aLog_file_name,char *fmt,...)
 	va_start(ap,fmt);
 	vsnprintf(aStr_tmp,sizeof(aStr_tmp),fmt,ap);
 	va_end(ap);
-	fprintf(fp,"[%s] %s\n",aTime_stamp,aStr_tmp);
+	fprintf(fp,"%s:%d[%s] %s\n",func_name,file_line,aTime_stamp,aStr_tmp);
 	fclose(fp);
+	
+	/*如果日志调试标志打开,则将内容同步输出到标准输出*/
+	if(strcmp(sgTransConf.aDebug_flag,"ON") == 0)
+		printf("%s\n",aStr_tmp);
 }
