@@ -68,4 +68,29 @@ struct tran_conf
 	char aDebug_flag[6+2];
 }sgTransConf;
 
+/*线程池定义相关结构体*/
+struct job
+{
+	void* (callback_function)(void *arg);	/*线程回调函数*/
+	void *arg;
+	struct job *next;
+}
+
+struct threadpool
+{
+	int thread_num;			/*线程池开启的线程个数*/
+	int queue_max_num;		/*队列中最大阻塞个数*/
+	struct job *head;		/*阻塞队列的头指针*/
+	struct job *tail;		/*阻塞队列的尾指针*/
+	pthread_t *pthreads;    /*线程池中所有的线程编号*/
+	pthread_mutex_t mutex;  /*互斥信号量*/
+	pthread_cond_t  queue_empty;    /*队列为空的条件变量*/
+	pthread_cond_t  queue_not_empty;/*队列不为空的条件变量*/
+	pthread_cond_t  queue_not full; /*队列不满的条件变量*/
+	int queue_cur_num;      /*队列当前的job个数*/
+	int queue_close;        /*队列是否已关闭*/
+	int pool_close;         /*线程池是否已关闭*/
+};
+
+
 #endif
