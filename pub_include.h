@@ -69,27 +69,29 @@ struct tran_conf
 }sgTransConf;
 
 /*线程池定义相关结构体*/
+
+/*任务队列节点,线程池中所有运行和等待的都是一个job,任务队列为链表实现的队列*/
 struct job
 {
 	void* (callback_function)(void *arg);	/*线程回调函数*/
-	void *arg;
+	void *arg;      /*回调函数的参数*/
 	struct job *next;
 }
 
+/*线程池结构*/
 struct threadpool
 {
-	int thread_num;			/*线程池开启的线程个数*/
-	int queue_max_num;		/*队列中最大阻塞个数*/
-	struct job *head;		/*阻塞队列的头指针*/
-	struct job *tail;		/*阻塞队列的尾指针*/
+	int thread_max_num;	    /*线程池开启的线程个数,该数目配置在配置文件中*/
+	int queue_max_num;		/*任务队列最大存储任务的个数,该数目配置在配置文件中*/
+	
+	struct job *head;		/*任务队列的头指针*/
+	struct job *tail;		/*任务队列的尾指针*/
+	int cur_job_num;        /*任务队列当前任务数*/
+	
 	pthread_t *pthreads;    /*线程池中所有的线程编号*/
-	pthread_mutex_t mutex;  /*互斥信号量*/
-	pthread_cond_t  queue_empty;    /*队列为空的条件变量*/
-	pthread_cond_t  queue_not_empty;/*队列不为空的条件变量*/
-	pthread_cond_t  queue_not full; /*队列不满的条件变量*/
-	int queue_cur_num;      /*队列当前的job个数*/
-	int queue_close;        /*队列是否已关闭*/
-	int pool_close;         /*线程池是否已关闭*/
+	
+	pthread_mutex_t queue_lock;     /*任务队列互斥锁*/
+	pthread_cond_t queue_not_empty; /*任务队列非空,线程处理函数*/
 };
 
 
