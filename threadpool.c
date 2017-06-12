@@ -3,7 +3,8 @@
 /*********************************************************
  ** 文件名  :   threadpool.c
  ** 功能    :   线程池处理
- ** 处理逻辑:   本程序预先启动一定数量的线程,没有任务到来时,线程池中的线程处于阻塞状态
+ ** 处理逻辑:   本程序预先启动一定数量的线程,这些线程均运行一个函数,该函数从任务队列中获取任务,如果任务队列中没有
+                任务,则线程池均处于挂起状态
  ***********************************************************/
 
 /*********************************************************
@@ -86,5 +87,75 @@ struct threadpool* threadpool_init(int thread_num, int queue_max_num)
  ***********************************************************/
 int threadpool_add_job(struct threadpool *pool,void*(*callback_function)(void *arg),void *arg)
 {
+    pthread_mutex_lock(&pool->queue_lock);
+    struct job *job_node = NULL;
+    while(pool->cur_job_num == pool->queue_max_num)
+    {
+        printf("the job queue is full,max job number %d\n",pool->queue_max_num);
+        pthread_cond_wait(&pool->queue_full,&pool->queue_lock);
+    }
     
+    /*任务队列不满,开始向任务队列添加任务*/
+    job_node = (struct job*)malloc(sizeof(struct job));
+    if(job_node == NULL)
+    {
+        printf("call malloc fail\n");
+        return -1;
+    }
+    
+    job_node->next = NULL;
+    pool->tail->next = job_node;
+    pool->tail = job_node;
+    if(pool->head == NULL)
+    {
+        pool->head = job_node;
+    }
+    pool->cur_job_num++;
+
+    pthread_mutex_unlock(&pool->queue_lock);
+    
+    pthread_cond_signal(&pool->queue_not_empty);
+}
+
+/*********************************************************
+ ** 函数名  :   threadpoll_function(void *arg)
+ ** 功能    :   线程处理函数,从任务队列中获取任务进行处理
+ ** 全局变量:
+ ** 入口参数:    
+ ** 出口参数:    无
+                 
+ ** 返回值:
+ ***********************************************************/
+void *threadpoll_function(void *arg)
+{
+    struct threadpool *pool = (struct threadpool*)arg;
+    struct job *job_node = NULL;
+    while(1)
+    {
+        /*获取任务队列互斥锁*/
+        pthread_mutex_lock(pool->queue_lock);
+        while(pool->cur_job_num == 0)
+        {
+            /*如果任务队列中的任务数为0,则线程阻塞*/
+            printf("thread [%d] is waiting\n",pthread_self());
+            pthread_cond_wait(&pool->queue_not_empty,&pool->queue_lock);
+        }
+        
+        /*任务队列中有待处理的任务,从任务队列中获取任务并执行任务*/
+        pool->cur_job_num--;
+        job_node = pool->head;
+        pool->head = pool->head->next;
+        if(pool->head == NULL)
+        {
+            pool->tail = NULL;
+        }
+        pthread_mutex_unlock(&pool->queue_lock);
+        
+        /*job_node指向需要执行任务的节点,下面执行任务*/
+        (*(job_node->callback_func))(job->arg);
+        free(job_node);
+        job_node = NULL;
+        
+        pthread_cond_signal(&pool->queue_full);
+    }
 }

@@ -73,7 +73,7 @@ struct tran_conf
 /*任务队列节点,线程池中所有运行和等待的都是一个job,任务队列为链表实现的队列*/
 struct job
 {
-	void* (callback_function)(void *arg);	/*线程回调函数*/
+	void* (callback_func)(void *arg);	/*线程回调函数*/
 	void *arg;      /*回调函数的参数*/
 	struct job *next;
 }
@@ -92,6 +92,7 @@ struct threadpool
 	
 	pthread_mutex_t queue_lock;     /*任务队列互斥锁*/
 	pthread_cond_t queue_not_empty; /*任务队列非空,线程处理函数*/
+	pthread_cond_t queue_full;      /*任务队列已满*/
 };
 
 
