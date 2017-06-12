@@ -1,147 +1,151 @@
 #include "pub_include.h"
 
 /*********************************************************
- ** ÎÄ¼şÃû  :   threadpool.c
- ** ¹¦ÄÜ    :   Ïß³Ì³Ø´¦Àí
- ** ´¦ÀíÂß¼­:   ±¾³ÌĞòÔ¤ÏÈÆô¶¯Ò»¶¨ÊıÁ¿µÄÏß³Ì,ÕâĞ©Ïß³Ì¾ùÔËĞĞÒ»¸öº¯Êı,¸Ãº¯Êı´ÓÈÎÎñ¶ÓÁĞÖĞ»ñÈ¡ÈÎÎñ,Èç¹ûÈÎÎñ¶ÓÁĞÖĞÃ»ÓĞ
-                ÈÎÎñ,ÔòÏß³Ì³Ø¾ù´¦ÓÚ¹ÒÆğ×´Ì¬
+ ** æ–‡ä»¶å  :   threadpool.c
+ ** åŠŸèƒ½    :   çº¿ç¨‹æ± å¤„ç†
+ ** å¤„ç†é€»è¾‘:   æœ¬ç¨‹åºé¢„å…ˆå¯åŠ¨ä¸€å®šæ•°é‡çš„çº¿ç¨‹,è¿™äº›çº¿ç¨‹å‡è¿è¡Œä¸€ä¸ªå‡½æ•°,è¯¥å‡½æ•°ä»ä»»åŠ¡é˜Ÿåˆ—ä¸­è·å–ä»»åŠ¡,å¦‚æœä»»åŠ¡é˜Ÿåˆ—ä¸­æ²¡æœ‰
+                ä»»åŠ¡,åˆ™çº¿ç¨‹æ± å‡å¤„äºæŒ‚èµ·çŠ¶æ€
  ***********************************************************/
 
 /*********************************************************
- ** º¯ÊıÃû  :   threadpool_init(int thread_max_num, int queue_max_num)
- ** ¹¦ÄÜ    :   ³õÊ¼»¯Ïß³Ì³Ø
- ** È«¾Ö±äÁ¿:
- ** Èë¿Ú²ÎÊı:    thread_num         Ïß³Ì³ØÖĞµÄÏß³ÌÊıÁ¿
-                 queue_max_num      ÈÎÎñ¶ÓÁĞµÄ×î´óÅÅ¶Ó¸öÊı
- ** ³ö¿Ú²ÎÊı:
+ ** å‡½æ•°å  :   threadpool_init(int thread_max_num, int queue_max_num)
+ ** åŠŸèƒ½    :   åˆå§‹åŒ–çº¿ç¨‹æ± 
+ ** å…¨å±€å˜é‡:
+ ** å…¥å£å‚æ•°:    thread_num         çº¿ç¨‹æ± ä¸­çš„çº¿ç¨‹æ•°é‡
+                 queue_max_num      ä»»åŠ¡é˜Ÿåˆ—çš„æœ€å¤§æ’é˜Ÿä¸ªæ•°
+ ** å‡ºå£å‚æ•°:
                  
- ** ·µ»ØÖµ:
+ ** è¿”å›å€¼:
  ***********************************************************/
 struct threadpool* threadpool_init(int thread_num, int queue_max_num)
 {
-    struct threadpool *poll = NULL;
+    struct threadpool *pool = NULL;
     int i,ret;
     do
     {
-        poll = malloc(sizeof(struct threadpoll));
-        if(poll == NULL)
+        pool = malloc(sizeof(struct threadpool));
+        if(pool == NULL)
         {
-            printf("ÉêÇë¿Õ¼äÊ§°Ü\n");
-            return -1;
+            printf("ç”³è¯·ç©ºé—´å¤±è´¥\n");
+            break;
         }
         
-        poll->thread_num = thread_num;
-        poll->queue_max_num = queue_max_num;
-        poll->head = NULL;
-        poll->tail = NULL;
-        poll->pthreads = malloc(sizeof(pthread_t) * poll->thread_num);
-        if(pthread_mutex_init(&poll->mutex,NULL))
+        pool->thread_max_num = thread_num;
+        pool->queue_max_num = queue_max_num;
+        pool->head = NULL;
+        pool->tail = NULL;
+        pool->pthreads = malloc(sizeof(pthread_t) * pool->thread_max_num);
+        if(pthread_mutex_init(&pool->queue_lock,NULL))
         {
             printf("failed to init mutex!\n");
-            return -1;
+            break;
         }
-        if(pthread_cond_init(&poll->queue_empty,NULL))
+        if(pthread_cond_init(&pool->queue_not_empty,NULL))
         {
             printf("failed to init queue_empty!\n");
             break;
         }
-        if(pthread_cond_init(&poll->queue_not_empty,NULL))
-        {
-            printf("failed to init queue_not_empty!\n");
-            break;
-        }
-        if(pthread_cond_init(&poll->queue_not_full,NULL))
+        if(pthread_cond_init(&pool->queue_full,NULL))
         {
             printf("failed to init queue_not_full!\n");
             break;
         }
-        poll->queue_cur_num = 0;
+        pool->cur_job_num = 0;
         
-        /*Æô¶¯Ïß³Ì*/
-        for(i = 0;i < poll->thread_num;i++)
+        /*å¯åŠ¨çº¿ç¨‹*/
+        for(i = 0;i < pool->thread_max_num;i++)
         {
-            ret = pthread_create(&pool->pthreads[i],NULL,threadpoll_function,(void *)poll);
+            ret = pthread_create(&pool->pthreads[i],NULL,threadpool_function,(void *)pool);
             if(ret)
             {
-                printf("´´½¨ĞÂÏß³ÌÊ§°Ü,errno = %d,[%s]\n",errno,strerror(errno));
+                printf("åˆ›å»ºæ–°çº¿ç¨‹å¤±è´¥,errno = %d,[%s]\n",errno,strerror(errno));
                 break;
             }
         }
         
-        return poll;
+        return pool;
     }while(0);
     
     return NULL;
 }
 
 /*********************************************************
- ** º¯ÊıÃû  :   threadpool_add_job(struct threadpool *pool,void*(*callback_function)(void *arg),void *arg)
- ** ¹¦ÄÜ    :   ÏòÏß³Ì³ØÖĞÌí¼ÓÈÎÎñ
- ** È«¾Ö±äÁ¿:
- ** Èë¿Ú²ÎÊı:    pool                   Ïß³Ì³ØµØÖ·
-                 callback_function      Ïß³Ì»Øµ÷º¯Êı
-                 arg                    »Øµ÷º¯ÊıÈë¿Ú²ÎÊı
- ** ³ö¿Ú²ÎÊı:    ÎŞ
+ ** å‡½æ•°å  :   threadpool_add_job(struct threadpool *pool,void*(*callback_function)(void *arg),void *arg)
+ ** åŠŸèƒ½    :   å‘çº¿ç¨‹æ± ä¸­æ·»åŠ ä»»åŠ¡
+ ** å…¨å±€å˜é‡:
+ ** å…¥å£å‚æ•°:    pool                   çº¿ç¨‹æ± åœ°å€
+                 callback_function      çº¿ç¨‹å›è°ƒå‡½æ•°
+                 arg                    å›è°ƒå‡½æ•°å…¥å£å‚æ•°
+ ** å‡ºå£å‚æ•°:    æ— 
                  
- ** ·µ»ØÖµ:      0:³É¹¦ 1:Ê§°Ü
+ ** è¿”å›å€¼:      0:æˆåŠŸ 1:å¤±è´¥
  ***********************************************************/
 int threadpool_add_job(struct threadpool *pool,void*(*callback_function)(void *arg),void *arg)
 {
     pthread_mutex_lock(&pool->queue_lock);
     struct job *job_node = NULL;
+    printf("æ·»åŠ ä»»åŠ¡,æ·»åŠ å‰ä»»åŠ¡é˜Ÿåˆ—ä¸­ä»»åŠ¡ä¸ªæ•°:%d\n",pool->cur_job_num);
     while(pool->cur_job_num == pool->queue_max_num)
     {
-        printf("the job queue is full,max job number %d\n",pool->queue_max_num);
+    	printf("ä»»åŠ¡é˜Ÿåˆ—å·²æ»¡,å¤„äºé˜»å¡çŠ¶æ€\n");
+//        printf("the job queue is full,max job number %d\n",pool->queue_max_num);
         pthread_cond_wait(&pool->queue_full,&pool->queue_lock);
     }
-    
-    /*ÈÎÎñ¶ÓÁĞ²»Âú,¿ªÊ¼ÏòÈÎÎñ¶ÓÁĞÌí¼ÓÈÎÎñ*/
+    /*ä»»åŠ¡é˜Ÿåˆ—ä¸æ»¡,å¼€å§‹å‘ä»»åŠ¡é˜Ÿåˆ—æ·»åŠ ä»»åŠ¡*/
     job_node = (struct job*)malloc(sizeof(struct job));
     if(job_node == NULL)
     {
         printf("call malloc fail\n");
         return -1;
     }
+    job_node->callback_func = callback_function;
+    job_node->arg = arg;
     
     job_node->next = NULL;
-    pool->tail->next = job_node;
-    pool->tail = job_node;
-    if(pool->head == NULL)
+    
+    if(pool->cur_job_num == 0)		/*å¦‚æœä»»åŠ¡é˜Ÿåˆ—ä¸ºç©º*/
     {
-        pool->head = job_node;
+    	pool->tail = job_node;
+    	pool->head = job_node;
+    }
+    else
+    {
+    	pool->tail->next = job_node;
+    	pool->tail = job_node;
     }
     pool->cur_job_num++;
-
+	
     pthread_mutex_unlock(&pool->queue_lock);
     
     pthread_cond_signal(&pool->queue_not_empty);
+    return 0;
 }
 
 /*********************************************************
- ** º¯ÊıÃû  :   threadpoll_function(void *arg)
- ** ¹¦ÄÜ    :   Ïß³Ì´¦Àíº¯Êı,´ÓÈÎÎñ¶ÓÁĞÖĞ»ñÈ¡ÈÎÎñ½øĞĞ´¦Àí
- ** È«¾Ö±äÁ¿:
- ** Èë¿Ú²ÎÊı:    
- ** ³ö¿Ú²ÎÊı:    ÎŞ
+ ** å‡½æ•°å  :   threadpool_function(void *arg)
+ ** åŠŸèƒ½    :   çº¿ç¨‹å¤„ç†å‡½æ•°,ä»ä»»åŠ¡é˜Ÿåˆ—ä¸­è·å–ä»»åŠ¡è¿›è¡Œå¤„ç†
+ ** å…¨å±€å˜é‡:
+ ** å…¥å£å‚æ•°:    
+ ** å‡ºå£å‚æ•°:    æ— 
                  
- ** ·µ»ØÖµ:
+ ** è¿”å›å€¼:
  ***********************************************************/
-void *threadpoll_function(void *arg)
+void *threadpool_function(void *arg)
 {
     struct threadpool *pool = (struct threadpool*)arg;
     struct job *job_node = NULL;
     while(1)
     {
-        /*»ñÈ¡ÈÎÎñ¶ÓÁĞ»¥³âËø*/
-        pthread_mutex_lock(pool->queue_lock);
+        /*è·å–ä»»åŠ¡é˜Ÿåˆ—äº’æ–¥é”*/
+        pthread_mutex_lock(&pool->queue_lock);
         while(pool->cur_job_num == 0)
         {
-            /*Èç¹ûÈÎÎñ¶ÓÁĞÖĞµÄÈÎÎñÊıÎª0,ÔòÏß³Ì×èÈû*/
-            printf("thread [%d] is waiting\n",pthread_self());
+            /*å¦‚æœä»»åŠ¡é˜Ÿåˆ—ä¸­çš„ä»»åŠ¡æ•°ä¸º0,åˆ™çº¿ç¨‹é˜»å¡*/
+            printf("thread [%lu] is waiting\n",pthread_self());
             pthread_cond_wait(&pool->queue_not_empty,&pool->queue_lock);
         }
         
-        /*ÈÎÎñ¶ÓÁĞÖĞÓĞ´ı´¦ÀíµÄÈÎÎñ,´ÓÈÎÎñ¶ÓÁĞÖĞ»ñÈ¡ÈÎÎñ²¢Ö´ĞĞÈÎÎñ*/
+        /*ä»»åŠ¡é˜Ÿåˆ—ä¸­æœ‰å¾…å¤„ç†çš„ä»»åŠ¡,ä»ä»»åŠ¡é˜Ÿåˆ—ä¸­è·å–ä»»åŠ¡å¹¶æ‰§è¡Œä»»åŠ¡*/
         pool->cur_job_num--;
         job_node = pool->head;
         pool->head = pool->head->next;
@@ -151,11 +155,49 @@ void *threadpoll_function(void *arg)
         }
         pthread_mutex_unlock(&pool->queue_lock);
         
-        /*job_nodeÖ¸ÏòĞèÒªÖ´ĞĞÈÎÎñµÄ½Úµã,ÏÂÃæÖ´ĞĞÈÎÎñ*/
-        (*(job_node->callback_func))(job->arg);
+        /*job_nodeæŒ‡å‘éœ€è¦æ‰§è¡Œä»»åŠ¡çš„èŠ‚ç‚¹,ä¸‹é¢æ‰§è¡Œä»»åŠ¡*/
+        (*(job_node->callback_func))(job_node->arg);
         free(job_node);
         job_node = NULL;
         
         pthread_cond_signal(&pool->queue_full);
     }
+}
+
+/*********************************************************
+ ** å‡½æ•°å  :   threadpool_destroy(struct threadpool *pool)
+ ** åŠŸèƒ½    :   é”€æ¯çº¿ç¨‹æ± 
+ ** å…¨å±€å˜é‡:
+ ** å…¥å£å‚æ•°:    
+ ** å‡ºå£å‚æ•°:    æ— 
+                 
+ ** è¿”å›å€¼:
+ ***********************************************************/
+int threadpool_destroy(struct threadpool *pool)
+{
+	int i;
+	
+	if(pool->shutdown == 1)
+		return -1;
+	
+	pool->shutdown = 1;
+	
+	/*å”¤é†’æ‰€æœ‰ç­‰å¾…çº¿ç¨‹*/
+	pthread_cond_broadcast(&pool->queue_not_empty);
+	
+	for(i = 0;i < pool->thread_max_num;i++)
+	{
+		pthread_join(pool->pthreads[i],NULL);
+	}
+	free(pool->pthreads);
+	
+	pthread_mutex_destroy(&pool->queue_lock);
+	pthread_cond_destroy(&pool->queue_not_empty);
+	pthread_cond_destroy(&pool->queue_full);
+	
+	free(pool);
+	
+	pool = NULL;
+	
+	return 0;
 }
