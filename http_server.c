@@ -11,7 +11,9 @@ int main()
     char aIp_addr[64+1];
     int pid,i;
     char aLog_filename[64];
+    struct threadpool *thread_pool;
     pthread_t new_thread;
+    int *tmp = NULL;
     
     memset(aLog_filename,0x00,sizeof(aLog_filename));
     strcpy(aLog_filename,"main_thread");
@@ -19,7 +21,15 @@ int main()
     /*解析全局结构体*/
     nAnalyseCfgFilePubDeal("DEBUG_LEVEL",sgTransConf.aDebug_level);
     nAnalyseCfgFilePubDeal("DEBUG_FLAG",sgTransConf.aDebug_flag);
-    printf("配置文件中日志打印级别为:%s,日志调试标志:%s\n",sgTransConf.aDebug_level,sgTransConf.aDebug_flag);
+    nAnalyseCfgFilePubDeal("THREAD_POLL_NUM",sgTransConf.aThread_pool_num);
+    sgTransConf.iThread_pool_num = atoi(sgTransConf.aThread_pool_num);
+    nAnalyseCfgFilePubDeal("JOB_QUEUE_MAX_NUM",sgTransConf.aQueue_job_num);
+    sgTransConf.iQueue_job_num = atoi(sgTransConf.aQueue_job_num);
+    printf("配置文件中日志打印级别为:%s,日志调试标志:%s,线程池最大数量:%d,任务队列最大任务数:%d\n",
+            sgTransConf.aDebug_level,
+            sgTransConf.aDebug_flag,
+            sgTransConf.iThread_pool_num,
+            sgTransConf.iQueue_job_num);
     
     iSockfd = socket(AF_INET,SOCK_STREAM,0);
     if(iSockfd == -1)
@@ -49,6 +59,17 @@ int main()
         Debug(3,aLog_filename,"开启监听失败,失败原因[%s]",strerror(errno));
         return -1;
     }
+    
+    /*初始化线程池*/
+    thread_pool = threadpool_init(sgTransConf.iThread_pool_num,sgTransConf.iQueue_job_num);
+    if(thread_pool == NULL)
+    {
+        Debug(3,aLog_filename,"创建线程池失败");
+        return -1;
+    }
+    
+    tmp = (int *)malloc(sizeof(int));
+    
     while(1)
     {
         memset(&stClient_addr,0x00,sizeof(stClient_addr));
@@ -61,17 +82,15 @@ int main()
             Debug(3,aLog_filename,"接收失败,iSockfd = [%d],失败原因[%s],进程号[%d]",iSockfd,strerror(errno),getpid());
             return -1;
         }
+        *tmp = iCli_sockfd;
         inet_ntop(AF_INET,&stClient_addr.sin_addr.s_addr,aIp_addr,sizeof(aIp_addr)-1);
         Debug(3,aLog_filename,"接收到请求,IP:[%s],端口号:[%d],请求报文长度:[%d]",
                 aIp_addr,ntohs(stClient_addr.sin_port),iLen);
         
-        /*创建子线程执行请求处理*/
-        if(pthread_create(&new_thread,NULL,nHttpInfoDeal,(void *)iCli_sockfd) != 0)
-        {
-            Debug(3,aLog_filename,"创建子线程失败,失败原因[%s]",strerror(errno));
-        }
-        Debug(3,aLog_filename,"该笔请求由子线程[%lu]执行",new_thread);
+        /*将请求处理添加到任务列表中,等待线程池处理*/
+        ret = threadpool_add_job(thread_pool,nHttpInfoDeal,tmp);
     }
     
+    free(tmp);
     return 0;
 }

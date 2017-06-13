@@ -84,11 +84,9 @@ int threadpool_add_job(struct threadpool *pool,void*(*callback_function)(void *a
 {
     pthread_mutex_lock(&pool->queue_lock);
     struct job *job_node = NULL;
-    printf("添加任务,添加前任务队列中任务个数:%d\n",pool->cur_job_num);
     while(pool->cur_job_num == pool->queue_max_num)
     {
     	printf("任务队列已满,处于阻塞状态\n");
-//        printf("the job queue is full,max job number %d\n",pool->queue_max_num);
         pthread_cond_wait(&pool->queue_full,&pool->queue_lock);
     }
     /*任务队列不满,开始向任务队列添加任务*/
@@ -100,6 +98,7 @@ int threadpool_add_job(struct threadpool *pool,void*(*callback_function)(void *a
     }
     job_node->callback_func = callback_function;
     job_node->arg = arg;
+    printf("arg = %d\n",*(int *)job_node->arg);
     
     job_node->next = NULL;
     
@@ -118,6 +117,8 @@ int threadpool_add_job(struct threadpool *pool,void*(*callback_function)(void *a
     pthread_mutex_unlock(&pool->queue_lock);
     
     pthread_cond_signal(&pool->queue_not_empty);
+    
+    printf("向任务队列添加任务完成\n");
     return 0;
 }
 

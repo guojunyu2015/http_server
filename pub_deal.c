@@ -71,7 +71,7 @@ void sig_chld( int signo)
  ** 入口参数:   iSock_fd    客户端socket描述符
  ** 返回值:
  ***********************************************************/
-void * nHttpInfoDeal(void  *t) 
+void *nHttpInfoDeal(void  *t) 
 {
     int i = 0,ret;
     char aLine_end[2+1];
@@ -96,7 +96,7 @@ void * nHttpInfoDeal(void  *t)
     
     /*封装日志文件名*/
     sprintf(aLog_filenm,"thread_%lu",pthread_self());
-    iSock_fd = (int)t;
+    iSock_fd = *(int *)t;
     aLine_end[0] = 10;
     
     Debug(3,aLog_filenm,"接收到客户端请求,客户端socket描述符:[%d]",iSock_fd);
@@ -356,7 +356,7 @@ void bsWPubDebug(const char *func_name,const int file_line,int debug_level,char 
     va_start(ap,fmt);
     vsnprintf(aStr_tmp,sizeof(aStr_tmp),fmt,ap);
     va_end(ap);
-    fprintf(fp,"%s:%d[%s] %s\n",func_name,file_line,aTime_stamp,aStr_tmp);
+    fprintf(fp,"%s[%s:%d] %s\n",aTime_stamp,func_name,file_line,aStr_tmp);
     fclose(fp);
     
     /*如果日志调试标志打开,则将内容同步输出到标准输出*/

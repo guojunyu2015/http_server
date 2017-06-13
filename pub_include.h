@@ -55,17 +55,22 @@ typedef struct head_line_info
 
 void sig_chld( int signo);
 int nAnalyseCfgFilePubDeal(char *aConfig_desc,char *aConfig_str);
-void * nHttpInfoDeal(void  *t);
+void *nHttpInfoDeal(void  *t);
 int nDealHttpMethod(ReqHeadMsg head_msg,char *rsp_info);
 int nResourceNotFound(ReqHeadMsg head_msg,char *rsp_info);
 void bsWPubDebug(const char *func_name,const int file_line,int debug_level,char *aLog_file_name,char *fmt,...);
 
 #define Debug(debug_level,file_name,...) bsWPubDebug(__FUNCTION__,__LINE__,debug_level,file_name,##__VA_ARGS__)
+
 /*交易全局结构体,该结构体内容对应http_server.conf配置文件中的配置信息*/
 struct tran_conf
 {
 	char aDebug_level[2+1];
 	char aDebug_flag[6+2];
+	char aThread_pool_num[8+1];
+	int iThread_pool_num;
+	char aQueue_job_num[8+1];
+	int iQueue_job_num;
 }sgTransConf;
 
 /*线程池定义相关结构体*/
